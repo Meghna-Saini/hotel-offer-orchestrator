@@ -1,0 +1,71 @@
+{
+  "info": {
+    "name": "Hotel Offer Orchestrator",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [{ "key": "baseUrl", "value": "http://localhost:3000" }],
+  "item": [
+    {
+      "name": "Valid city with overlaps (city=delhi)",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/hotels?city=delhi", "host": ["{{baseUrl}}"], "path": ["api", "hotels"], "query": [{ "key": "city", "value": "delhi" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('200 OK', () => pm.response.to.have.status(200));",
+        "const hotels = pm.response.json();",
+        "pm.test('Deduplicated by name', () => { const n = hotels.map(h => h.name); pm.expect(new Set(n).size).to.eql(n.length); });",
+        "pm.test('Holtin comes from Supplier B at 5340', () => { const h = hotels.find(x => x.name === 'Holtin'); pm.expect(h.price).to.eql(5340); pm.expect(h.supplier).to.eql('Supplier B'); });",
+        "pm.test('Radison comes from Supplier A at 5900', () => { const h = hotels.find(x => x.name === 'Radison'); pm.expect(h.price).to.eql(5900); pm.expect(h.supplier).to.eql('Supplier A'); });"
+      ] } }]
+    },
+    {
+      "name": "Price filter (delhi, 5000-6000)",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/hotels?city=delhi&minPrice=5000&maxPrice=6000", "host": ["{{baseUrl}}"], "path": ["api", "hotels"], "query": [{ "key": "city", "value": "delhi" }, { "key": "minPrice", "value": "5000" }, { "key": "maxPrice", "value": "6000" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('200 OK', () => pm.response.to.have.status(200));",
+        "pm.test('All prices within range', () => pm.response.json().forEach(h => pm.expect(h.price).to.be.within(5000, 6000)));"
+      ] } }]
+    },
+    {
+      "name": "City with no results (city=atlantis)",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/hotels?city=atlantis", "host": ["{{baseUrl}}"], "path": ["api", "hotels"], "query": [{ "key": "city", "value": "atlantis" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('200 OK', () => pm.response.to.have.status(200));",
+        "pm.test('Empty array', () => pm.expect(pm.response.json()).to.eql([]));"
+      ] } }]
+    },
+    {
+      "name": "Missing city (400)",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/hotels", "host": ["{{baseUrl}}"], "path": ["api", "hotels"] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('400 Bad Request', () => pm.response.to.have.status(400));"] } }]
+    },
+    {
+      "name": "Simulate Supplier A down (optional)",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/hotels?city=delhi&simulateDown=A", "host": ["{{baseUrl}}"], "path": ["api", "hotels"], "query": [{ "key": "city", "value": "delhi" }, { "key": "simulateDown", "value": "A" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('200 OK (served from Supplier B only)', () => pm.response.to.have.status(200));",
+        "pm.test('Only Supplier B offers', () => pm.response.json().forEach(h => pm.expect(h.supplier).to.eql('Supplier B')));",
+        "pm.test('Failed supplier reported in header', () => pm.expect(pm.response.headers.get('X-Failed-Suppliers')).to.eql('Supplier A'));"
+      ] } }]
+    },
+    {
+      "name": "Simulate Supplier B down (optional)",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/hotels?city=delhi&simulateDown=B", "host": ["{{baseUrl}}"], "path": ["api", "hotels"], "query": [{ "key": "city", "value": "delhi" }, { "key": "simulateDown", "value": "B" }] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('200 OK (served from Supplier A only)', () => pm.response.to.have.status(200));",
+        "pm.test('Only Supplier A offers', () => pm.response.json().forEach(h => pm.expect(h.supplier).to.eql('Supplier A')));"
+      ] } }]
+    },
+    {
+      "name": "Health check",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] } },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));", "pm.test('Both suppliers UP', () => { const b = pm.response.json(); pm.expect(b.suppliers['Supplier A']).to.eql('UP'); pm.expect(b.suppliers['Supplier B']).to.eql('UP'); });"] } }]
+    },
+    {
+      "name": "Mock Supplier A",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/supplierA/hotels?city=delhi", "host": ["{{baseUrl}}"], "path": ["supplierA", "hotels"], "query": [{ "key": "city", "value": "delhi" }] } }
+    },
+    {
+      "name": "Mock Supplier B",
+      "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/supplierB/hotels?city=delhi", "host": ["{{baseUrl}}"], "path": ["supplierB", "hotels"], "query": [{ "key": "city", "value": "delhi" }] } }
+    }
+  ]
+}
